@@ -15,7 +15,25 @@ const db = mysql.createConnection({
     port: process.env.DB_PORT || 3306
 });
 
-db.connect(err => { if(err) throw err; console.log("✅ Servidor Vinculado a MySQL"); });
+db.connect(err => { 
+    if(err) {
+        console.error("❌ Error conectando a MySQL:", err);
+        throw err;
+    }
+    console.log("✅ Servidor Vinculado a MySQL (Aiven)");
+
+    // ESTO CREARÁ TUS TABLAS AUTOMÁTICAMENTE
+    const queries = [
+        `CREATE TABLE IF NOT EXISTS proveedores (NIF VARCHAR(50) PRIMARY KEY, NOMBRE VARCHAR(100), DIRECCION VARCHAR(255))`,
+        `CREATE TABLE IF NOT EXISTS productos (CODIGO INT PRIMARY KEY, NOMBRE VARCHAR(100), PRECIO DECIMAL(10,2), NIF VARCHAR(50), stock INT, FOREIGN KEY (NIF) REFERENCES proveedores(NIF))`,
+        `CREATE TABLE IF NOT EXISTS clientes (COD_CLIENTE INT PRIMARY KEY, NOMBRE VARCHAR(100), APELLIDO VARCHAR(100), RFC VARCHAR(15), DIRECCION VARCHAR(255), FCA_NAC DATE, password VARCHAR(50), avatar TEXT)`,
+        `CREATE TABLE IF NOT EXISTS productos_clientes (id INT AUTO_INCREMENT PRIMARY KEY, CODIGO INT, COD_CLIENTE INT, id_ticket VARCHAR(50), fecha_compra TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (CODIGO) REFERENCES productos(CODIGO), FOREIGN KEY (COD_CLIENTE) REFERENCES clientes(COD_CLIENTE))`
+    ];
+
+    queries.forEach(q => {
+        db.query(q, (err) => { if(err) console.log("Info: Tabla ya lista."); });
+    });
+});
 
 // --- PRODUCTOS ---
 app.get('/api/productos', (req, res) => {
