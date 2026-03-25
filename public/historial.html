@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="estilo.css">
+    <title>Historial de Ventas</title>
+    <style>
+        .ticket-virtual {
+            background: white;
+            width: 320px;
+            margin: 50px auto;
+            padding: 20px;
+            border-radius: 5px;
+            font-family: 'Courier New', Courier, monospace;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            color: #000;
+        }
+        .btn-cerrar {
+            width: 100%;
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>📜 Historial de Ventas</h2>
+            <button onclick="window.location.href='/cliente.html'" style="background:#4f46e5">Volver a la Tienda</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Ticket ID</th>
+                    <th>Fecha</th>
+                    <th>Total</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+            <tbody id="tabla-historial"></tbody>
+        </table>
+
+        <div id="modal-ticket" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000;">
+            <div class="ticket-virtual">
+                <h3 style="text-align:center; margin-bottom:5px;">*** TIENDA POO ***</h3>
+                <p style="text-align:center; font-size:0.8rem; margin:0;">Chimalhuacán, Estado de México</p>
+                <hr style="border:1px dashed #000;">
+                
+                <div id="detalle-ticket"></div>
+
+                <p style="text-align:center; margin-top:15px; font-size:0.8rem;">¡Gracias por preferirnos!</p>
+                <button class="btn-cerrar" onclick="cerrar()">CERRAR TICKET</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function cargarHistorial() {
+            fetch('/api/historial').then(res => res.json()).then(data => {
+                const tbody = document.getElementById('tabla-historial');
+                tbody.innerHTML = "";
+                data.forEach(h => {
+                    const fecha = new Date(h.fecha_compra).toLocaleString();
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${h.id_ticket}</td>
+                            <td>${fecha}</td>
+                            <td>$${h.total}</td>
+                            <td><button onclick="verTicket('${h.id_ticket}')">Ver Detalle</button></td>
+                        </tr>`;
+                });
+            });
+        }
+
+        function verTicket(id) {
+            fetch(`/api/ticket/${id}`).then(res => res.json()).then(items => {
+                const div = document.getElementById('detalle-ticket');
+                let total = 0;
+                
+                const cliente = (items[0].cliente || items[0].CLIENTE || "Cliente") + " " + (items[0].apellido || items[0].APELLIDO || "");
+
+                div.innerHTML = `
+                    <p><b>FOLIO:</b> ${id}</p>
+                    <p><b>CLIENTE:</b> ${cliente}</p>
+                    <hr style="border:1px dashed #000;">
+                    <div style="font-weight:bold; display:flex; justify-content:space-between;">
+                        <span>PRODUCTO</span>
+                        <span>PRECIO</span>
+                    </div>
+                `;
+
+                items.forEach(i => {
+                    const precioProd = i.precio || i.PRECIO || 0;
+                    const nombreProd = i.producto || i.PRODUCTO || "Producto";
+
+                    div.innerHTML += `
+                        <div style="display:flex; justify-content:space-between; margin-top:5px;">
+                            <span>${nombreProd}</span>
+                            <span>$${precioProd}</span>
+                        </div>`;
+                    
+                    total += parseFloat(precioProd);
+                });
+
+                div.innerHTML += `
+                    <hr style="border:1px dashed #000;">
+                    <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:1.2rem;">
+                        <span>TOTAL:</span>
+                        <span>$${total.toFixed(2)}</span>
+                    </div>
+                `;
+                
+                document.getElementById('modal-ticket').style.display = "block";
+            });
+        }
+
+        function cerrar() {
+            document.getElementById('modal-ticket').style.display = "none";
+        }
+
+        cargarHistorial();
+    </script>
+</body>
+</html>

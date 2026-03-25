@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <link rel="stylesheet" href="estilocarrito.css">
+    <title>Tienda - Panel de Compra</title>
+</head>
+<body>
+    <div class="container">
+        <div id="bienvenida" style="margin-bottom:20px;">
+            <h2 style="margin:0;">Cargando...</h2>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 20px;">
+            <div style="flex-grow: 1; position: relative;">
+                <input type="text" id="buscador" placeholder="🔍 Buscar producto por nombre..." 
+                    onkeyup="filtrarProductos()"
+                    style="width: 100%; padding: 12px 15px; border-radius: 10px; border: 1px solid #cbd5e1; outline: none; font-size: 1rem;">
+            </div>
+            <button onclick="window.location.href='/historial.html'" style="background:#10b981; padding:12px 20px; border-radius:10px; color:white; border:none; cursor:pointer; font-weight:bold; white-space: nowrap;">
+                Ver Mis Compras 
+            </button>
+        </div>
+
+        <div class="main-content">
+            <div class="productos-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Producto</th><th>Precio</th><th>Stock</th><th>Cantidad</th><th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista"></tbody>
+                </table>
+            </div>
+
+            <aside class="carrito-sidebar">
+                <h3 style="margin-top:0;"> Mi Carrito</h3>
+                <div id="items-carrito"><p style="color: #94a3b8;">Vacío</p></div>
+                <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
+                <div id="total" style="font-weight: bold; font-size: 1.3rem; color: #4f46e5;">Total: $0</div>
+                <br>
+                <button onclick="finalizarPago()" id="btn-pagar" style="width: 100%; display: none; background:#4f46e5; color:white; padding:12px; border:none; border-radius:10px; cursor:pointer; font-weight:bold;">
+                    Finalizar y Pagar
+                </button>
+            </aside>
+        </div>
+
+        <footer style="margin-top: 50px; text-align: center; padding: 20px; color: #64748b; border-top: 1px solid #e2e8f0; font-size: 0.9rem;">
+            Desarrollado por <b>Alexander</b> - Ingeniería en Sistemas Computacionales
+        </footer>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const idUsuario = params.get('id');
+        const nombreUsuario = params.get('nombre');
+        const fotoURL = params.get('img') || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix';
+        
+        let carrito = [];
+        let productosData = [];
+
+        if (!idUsuario) {
+            alert("⚠️ Debes iniciar sesión.");
+            window.location.href = "/login.html";
+        } else {
+            document.getElementById('bienvenida').innerHTML = `
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <img src="${decodeURIComponent(fotoURL)}" style="width: 65px; height: 65px; border-radius: 50%; border: 3px solid #4f46e5; background:#eee;">
+                    <h2 style="margin:0;">Bienvenido, ${nombreUsuario}</h2>
+                </div>
+            `;
+        }
+
+        fetch('/api/productos').then(res => res.json()).then(data => {
+            productosData = data;
+            renderizarTabla(data);
+        });
+
+        function renderizarTabla(lista) {
+            const tbody = document.getElementById('lista');
+            tbody.innerHTML = "";
+            
+            lista.forEach(p => {
+                const enCarrito = carrito.find(item => item.codigo === p.CODIGO);
+                const cantEnCarrito = enCarrito ? enCarrito.cantidad : 0;
+                const stockReal = p.stock - cantEnCarrito;
+                const sinStock = stockReal <= 0;
+                
+                tbody.innerHTML += `
+                <tr style="${sinStock ? 'opacity: 0.6; background: #f8fafc;' : ''}">
+                    <td style="font-weight: bold;">${p.NOMBRE}</td>
+                    <td>$${p.PRECIO}</td>
+                    <td style="color: ${sinStock ? '#ef4444' : '#10b981'}; font-weight: bold;">
+                        ${sinStock ? 'AGOTADO' : stockReal}
+                    </td>
+                    <td>
+                        <button class="qty-btn" onclick="cambiarQty('${p.CODIGO}', -1, ${stockReal})" ${sinStock ? 'disabled' : ''}>-</button>
+                        <span id="qty-${p.CODIGO}" style="margin:0 10px; font-weight:bold;">1</span>
+                        <button class="qty-btn" onclick="cambiarQty('${p.CODIGO}', 1, ${stockReal})" ${sinStock ? 'disabled' : ''}>+</button>
+                    </td>
+                    <td>
+                        <button onclick="agregarAlCarrito('${p.CODIGO}', '${p.NOMBRE}', ${p.PRECIO})" 
+                            style="background: ${sinStock ? '#94a3b8' : '#4f46e5'}; cursor: ${sinStock ? 'not-allowed' : 'pointer'};"
+                            ${sinStock ? 'disabled' : ''}>
+                            ${sinStock ? 'Sin Stock' : 'Añadir'}
+                        </button>
+                    </td>
+                </tr>`;
+            });
+        }
+
+        function filtrarProductos() {
+            const busqueda = document.getElementById('buscador').value.toLowerCase();
+            const filtrados = productosData.filter(p => p.NOMBRE.toLowerCase().includes(busqueda));
+            renderizarTabla(filtrados);
+        }
+
+        function cambiarQty(id, delta, stockMax) {
+            let span = document.getElementById(`qty-${id}`);
+            let val = parseInt(span.innerText) + delta;
+            if (val > stockMax && delta > 0) {
+                alert("⚠️ No puedes exceder el stock disponible (" + stockMax + ")");
+                return;
+            }
+            if (val < 1) val = 1;
+            span.innerText = val;
+        }
+
+        function agregarAlCarrito(codigo, nombre, precio) {
+            let cantPedida = parseInt(document.getElementById(`qty-${codigo}`).innerText);
+            let producto = productosData.find(p => p.CODIGO == codigo);
+            let itemCarrito = carrito.find(item => item.codigo === codigo);
+            let yaEnCarrito = itemCarrito ? itemCarrito.cantidad : 0;
+
+            if ((yaEnCarrito + cantPedida) > producto.stock) {
+                alert("❌ No hay suficiente stock disponible.");
+                return;
+            }
+
+            if(itemCarrito) { itemCarrito.cantidad += cantPedida; } 
+            else { carrito.push({ codigo, nombre, precio, cantidad: cantPedida }); }
+            
+            actualizarUI();
+            renderizarTabla(productosData);
+        }
+
+        function actualizarUI() {
+            const ul = document.getElementById('items-carrito');
+            ul.innerHTML = carrito.length === 0 ? '<p style="color: #94a3b8;">Vacío</p>' : "";
+            let total = 0;
+            carrito.forEach((item, index) => {
+                ul.innerHTML += `
+                <div class="carrito-item" style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                    <span>${item.nombre} (x${item.cantidad})</span>
+                    <button onclick="carrito.splice(${index},1); actualizarUI(); renderizarTabla(productosData);" style="color:red; background:none; border:none; cursor:pointer;">❌</button>
+                </div>`;
+                total += item.precio * item.cantidad;
+            });
+            document.getElementById('total').innerText = `Total: $${total}`;
+            document.getElementById('btn-pagar').style.display = carrito.length > 0 ? "block" : "none";
+        }
+
+        function finalizarPago() {
+            fetch('/finalizar-compra', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id_cliente: idUsuario, items: carrito })
+            })
+            .then(res => res.json())
+            .then(data => {
+                alert("✅ ¡Compra realizada con éxito!");
+                window.location.href = "/"; 
+            });
+        }
+    </script>
+</body>
+</html>
