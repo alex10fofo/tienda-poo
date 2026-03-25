@@ -161,17 +161,21 @@
         }
 
         function finalizarPago() {
-            fetch('/finalizar-compra', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ id_cliente: idUsuario, items: carrito })
-            })
-            .then(res => res.json())
-            .then(data => {
-                alert("✅ ¡Compra realizada con éxito!");
-                window.location.href = "/"; 
-            });
+    fetch('/finalizar-compra', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id_cliente: idUsuario, items: carrito })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.success) {
+            alert("✅ ¡Compra realizada con éxito! Ticket: " + data.ticket);
+            window.location.href = "/historial.html"; // Mándalo al historial para que lo vea
+        } else {
+            alert("❌ Error al procesar: " + data.error);
         }
+    });
+}
     </script>
 </body>
 </html>
