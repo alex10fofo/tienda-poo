@@ -81,12 +81,34 @@ app.post('/registro-cliente', (req, res) => {
 // --- COMPRA ---
 app.post('/finalizar-compra', (req, res) => {
     const { id_cliente, items } = req.body; 
-    const idTicket = 'TICK-' + Date.now(); 
-    items.forEach(item => {
-        db.query('INSERT INTO productos_clientes (CODIGO, COD_CLIENTE, id_ticket) VALUES (?,?,?)', [item.codigo, id_cliente, idTicket]);
-        db.query('UPDATE productos SET stock = stock - ? WHERE CODIGO = ?', [item.cantidad, item.codigo]);
+    const idTicket = 'TICK-' + Date.now(); // Esto genera el número de ticket
+    
+    // Usamos una promesa para saber cuando todos los productos se inserten
+    const promesas = items.map(item => {
+        return new Promise((resolve, reject) => {
+            // INSERTAR EN LA TABLA DE VENTAS
+            const sqlInsert = 'INSERT INTO productos_clientes (CODIGO, COD_CLIENTE, id_ticket) VALUES (?, ?, ?)';
+            db.query(sqlInsert, [item.codigo, id_cliente, idTicket], (err) => {
+                if (err) return reject(err);
+                
+                // ACTUALIZAR EL STOCK (Restar lo que se compró)
+                const sqlUpdate = 'UPDATE productos SET stock = stock - ? WHERE CODIGO = ?';
+                db.query(sqlUpdate, [item.cantidad, item.codigo], (err) => {
+                    if (err) return reject(err);
+                    resolve();
+                });
+            });
+        });
     });
-    res.json({ success: true, ticket: idTicket });
+
+    Promise.all(promesas)
+        .then(() => {
+            res.json({ success: true, ticket: idTicket });
+        })
+        .catch(err => {
+            console.error("Error en la compra:", err);
+            res.status(500).json({ success: false, error: err.message });
+        });
 });
 
 // --- HISTORIAL ---

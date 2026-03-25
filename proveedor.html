@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel de Proveedor</title>
+    <link rel="stylesheet" href="estilo.css">
+    <style>
+        .tablita-guia { width: 100%; font-size: 0.85rem; margin-bottom: 20px; border: 1px solid #ddd; border-collapse: collapse; margin-top: 10px;}
+        .tablita-guia th { background: #f1f5f9; color: #475569; padding: 10px; border: 1px solid #ddd;}
+        .tablita-guia td { padding: 8px; text-align: center; border: 1px solid #eee;}
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: white; margin: 10% auto; padding: 20px; border-radius: 15px; width: 400px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .close { float: right; font-size: 28px; cursor: pointer; color: #aaa; }
+        .btn-abrir-modal { background: #10b981; margin-top: 10px; font-size: 0.9rem; padding: 8px; color: white; border: none; border-radius: 5px; cursor: pointer;}
+        select { width: 100%; padding: 10px; margin: 10px 0; border-radius: 8px; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Panel de Proveedor</h2>
+        <section>
+            <h3>Guía de Productos Existentes</h3>
+            <table class="tablita-guia">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre del Producto</th>
+                        <th>Existencias (Stock)</th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpo-guia"></tbody>
+            </table> 
+        </section>
+
+        <form action="/surtir" method="POST">
+            <h3>Surtir Stock</h3>
+            <input type="number" name="cod" placeholder="Código (Ver guía arriba)" required>
+            <input type="number" name="cant" placeholder="Cantidad a sumar" required>
+            <button type="submit">Actualizar Stock</button>
+        </form>
+
+        <form id="form-nuevo-prod">
+            <h3>Registrar Producto Nuevo</h3>
+            <input type="number" name="cod" placeholder="Nuevo Código" required>
+            <input type="text" name="nom" placeholder="Nombre" required>
+            <input type="number" name="pre" placeholder="Precio" required>
+            <label>Selecciona Proveedor:</label>
+            <select name="nif" id="lista-proveedores" required></select>
+            <button type="button" class="btn-abrir-modal" onclick="abrirModal()">+ Añadir Nuevo Proveedor</button>
+            <input type="number" name="stk" placeholder="Stock Inicial" required style="margin-top:15px;">
+            <button type="submit" style="background:#0ea5e9">Registrar Todo</button>
+        </form>
+        <br><a href="/">Volver al Menú Principal</a>
+    </div>
+
+    <div id="modalProveedor" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="cerrarModal()">&times;</span>
+            <h3>Registrar Nuevo Proveedor</h3>
+            <form id="form-nuevo-prov">
+                <input type="text" name="nif" placeholder="NIF (Ej: PRO01)" required>
+                <input type="text" name="nombre" placeholder="Nombre de la Empresa" required>
+                <input type="text" name="direccion" placeholder="Dirección" required>
+                <button type="submit" style="background:#10b981">Guardar Proveedor</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function abrirModal() { document.getElementById('modalProveedor').style.display = 'block'; }
+        function cerrarModal() { document.getElementById('modalProveedor').style.display = 'none'; }
+
+        function cargarGuia() {
+            fetch('/api/productos').then(res => res.json()).then(data => {
+                const tabla = document.getElementById('cuerpo-guia');
+                tabla.innerHTML = "";
+                data.forEach(p => {
+                    const cantidad = p.stock || p.STOCK || 0; 
+                    tabla.innerHTML += `<tr>
+                        <td style="font-weight: bold;">${p.CODIGO}</td>
+                        <td>${p.NOMBRE}</td>
+                        <td style="color: ${cantidad < 5 ? 'red' : '#10b981'}; font-weight: bold;">${cantidad} piezas</td>
+                    </tr>`;
+                });
+            });
+        }
+
+        function cargarProveedores() {
+            fetch('/api/proveedores').then(res => res.json()).then(data => {
+                const select = document.getElementById('lista-proveedores');
+                select.innerHTML = data.length === 0 ? "<option>No hay proveedores</option>" : ""; 
+                data.forEach(prov => {
+                    select.innerHTML += `<option value="${prov.NIF}">${prov.NOMBRE}</option>`;
+                });
+            });
+        }
+
+        document.getElementById('form-nuevo-prov').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new URLSearchParams(new FormData(this));
+            fetch('/api/nuevo-proveedor', { method: 'POST', body: formData }).then(() => {
+                alert("✅ Proveedor registrado");
+                cerrarModal();
+                cargarProveedores();
+                this.reset();
+            });
+        });
+
+        // BUSCA ESTO EN TU SCRIPT DE PROVEEDOR.HTML
+document.getElementById('form-nuevo-prod').addEventListener('submit', function(e) {
+    e.preventDefault(); // Evita que la página se recargue
+
+    // Usamos URLSearchParams para que el servidor entienda los datos del formulario
+    const formData = new URLSearchParams(new FormData(this));
+
+    fetch('/nuevo-prod', { 
+        method: 'POST', 
+        body: formData 
+    })
+    .then(res => {
+        if (res.ok) {
+            alert("✅ ¡Producto Guardado con Éxito!");
+            this.reset(); // Limpia los campos
+            cargarGuia(); // Actualiza la tablita de arriba automáticamente
+        } else {
+            // Si el servidor falla, esto nos dirá por qué
+            res.text().then(text => alert("❌ Error del servidor: " + text));
+        }
+    })
+    .catch(err => {
+        console.error("Error en la petición:", err);
+        alert("❌ Error de conexión con el servidor.");
+    });
+});
+
+        cargarGuia();
+        cargarProveedores();
+    </script>
+</body>
+</html>
