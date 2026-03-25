@@ -7,12 +7,14 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// CONEXIÓN CORREGIDA PARA AIVEN
 const db = mysql.createConnection({
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'tiendapoo',
-    port: process.env.DB_PORT || 3306
+    port: process.env.DB_PORT || 3306,
+    ssl: { rejectUnauthorized: false } // <--- ESTO ES LO QUE TE FALTA PARA QUE EL TICKET GUARDE
 });
 
 db.connect(err => { 
@@ -113,8 +115,16 @@ app.post('/finalizar-compra', (req, res) => {
 
 // --- HISTORIAL ---
 app.get('/api/historial', (req, res) => {
-    const sql = `SELECT id_ticket, fecha_compra, SUM(p.PRECIO) as total FROM productos_clientes pc JOIN productos p ON pc.CODIGO = p.CODIGO GROUP BY id_ticket ORDER BY fecha_compra DESC`;
-    db.query(sql, (err, results) => res.json(results));
+    const sql = `
+        SELECT id_ticket, MAX(fecha_compra) as fecha_compra, SUM(p.PRECIO) as total 
+        FROM productos_clientes pc 
+        JOIN productos p ON pc.CODIGO = p.CODIGO 
+        GROUP BY id_ticket 
+        ORDER BY fecha_compra DESC`;
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json(err);
+        res.json(results);
+    });
 });
 
 // --- TICKET DETALLE ---
